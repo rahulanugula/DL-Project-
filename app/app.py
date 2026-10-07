@@ -121,42 +121,46 @@ div.stButton > button:hover {
 @st.cache_resource
 def load_artifacts():
     """Load the trained Keras model and rebuild the TextVectorization layer."""
-    import tensorflow as tf
-    from tensorflow.keras.layers import TextVectorization
+    try:
+        import tensorflow as tf
+        from tensorflow.keras.layers import TextVectorization
 
-    base_dir    = os.path.join(os.path.dirname(__file__), "..")
-    model_path  = os.path.join(base_dir, "models", "spam_model.keras")
-    vocab_path  = os.path.join(base_dir, "models", "vocab.txt")
-    meta_path   = os.path.join(base_dir, "models", "vec_meta.pkl")
+        base_dir    = os.path.join(os.path.dirname(__file__), "..")
+        model_path  = os.path.join(base_dir, "models", "spam_model.keras")
+        vocab_path  = os.path.join(base_dir, "models", "vocab.txt")
+        meta_path   = os.path.join(base_dir, "models", "vec_meta.pkl")
 
-    if not os.path.exists(model_path) or not os.path.exists(vocab_path):
-        return None, None
+        if not os.path.exists(model_path) or not os.path.exists(vocab_path):
+            return None, None, "Model files not found. Please retrain the model."
 
-    model = tf.keras.models.load_model(model_path)
+        model = tf.keras.models.load_model(model_path)
 
-    # Load hyperparams
-    if os.path.exists(meta_path):
-        with open(meta_path, "rb") as f:
-            meta = pickle.load(f)
-        max_tokens = meta["max_tokens"]
-        max_len    = meta["max_len"]
-    else:
-        max_tokens, max_len = 10_000, 100
+        # Load hyperparams
+        if os.path.exists(meta_path):
+            with open(meta_path, "rb") as f:
+                meta = pickle.load(f)
+            max_tokens = meta["max_tokens"]
+            max_len    = meta["max_len"]
+        else:
+            max_tokens, max_len = 10_000, 100
 
-    # Rebuild vectorizer from saved vocabulary
-    with open(vocab_path, "r", encoding="utf-8") as f:
-        vocab = [line.rstrip("\n") for line in f]
+        # Rebuild vectorizer from saved vocabulary
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            vocab = [line.rstrip("\n") for line in f]
 
-    vectorizer = TextVectorization(
-        max_tokens=max_tokens,
-        output_mode="int",
-        output_sequence_length=max_len,
-        standardize="lower_and_strip_punctuation",
-    )
-    # Set vocabulary (adapt on a dummy then override)
-    vectorizer.set_vocabulary(vocab)
+        vectorizer = TextVectorization(
+            max_tokens=max_tokens,
+            output_mode="int",
+            output_sequence_length=max_len,
+            standardize="lower_and_strip_punctuation",
+        )
+        # Set vocabulary (adapt on a dummy then override)
+        vectorizer.set_vocabulary(vocab)
 
-    return model, vectorizer
+        return model, vectorizer, None
+
+    except Exception as e:
+        return None, None, str(e)
 
 
 # ── Header ─────────────────────────────────────────────────────────────────────
@@ -167,13 +171,16 @@ st.markdown(
 )
 
 # ── Model status ───────────────────────────────────────────────────────────────
-model, vectorizer = load_artifacts()
+model, vectorizer, load_error = load_artifacts()
 
 if model is None:
-    st.warning(
-        "⚠️ **Model not found.** Please run the training script first.",
-        icon="🧠",
-    )
+    if load_error:
+        st.error(f"❌ **Model load error:** {load_error}")
+    else:
+        st.warning(
+            "⚠️ **Model not found.** Please run the training script first.",
+            icon="🧠",
+        )
     st.markdown("""
     <div class="info-card">
     <b>How to train the model:</b><br>
