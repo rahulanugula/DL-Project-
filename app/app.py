@@ -123,7 +123,15 @@ def load_artifacts():
     """Load the trained Keras model and rebuild the TextVectorization layer."""
     try:
         import tensorflow as tf
-        from tensorflow.keras.layers import TextVectorization
+
+        # TF 2.16+ uses standalone keras; tf-keras provides backwards compat
+        try:
+            import tf_keras as keras_compat
+            TextVectorization = keras_compat.layers.TextVectorization
+            load_model = keras_compat.models.load_model
+        except ImportError:
+            from tensorflow.keras.layers import TextVectorization
+            load_model = tf.keras.models.load_model
 
         base_dir    = os.path.join(os.path.dirname(__file__), "..")
         model_path  = os.path.join(base_dir, "models", "spam_model.keras")
@@ -133,7 +141,7 @@ def load_artifacts():
         if not os.path.exists(model_path) or not os.path.exists(vocab_path):
             return None, None, "Model files not found. Please retrain the model."
 
-        model = tf.keras.models.load_model(model_path)
+        model = load_model(model_path)
 
         # Load hyperparams
         if os.path.exists(meta_path):
@@ -154,7 +162,6 @@ def load_artifacts():
             output_sequence_length=max_len,
             standardize="lower_and_strip_punctuation",
         )
-        # Set vocabulary (adapt on a dummy then override)
         vectorizer.set_vocabulary(vocab)
 
         return model, vectorizer, None
